@@ -215,4 +215,6 @@ object Utils {
             ExifInterface.ORIENTATION_UNDEFINED
         }
     }
+
+
 }

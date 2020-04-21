@@ -3,15 +3,8 @@ package com.google.firebase.ml.md.kotlin
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.os.Message
-import android.view.View
-import android.widget.Button
-import android.widget.ImageButton
-import kotlinx.android.synthetic.*
 import kotlinx.android.synthetic.main.activity_home.*
-import kotlinx.android.synthetic.main.activity_login.*
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.ml.md.History
 import com.google.firebase.ml.md.R
 
 

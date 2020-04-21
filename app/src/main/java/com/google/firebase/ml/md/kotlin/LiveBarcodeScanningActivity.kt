@@ -29,6 +29,7 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
 import com.google.android.material.chip.Chip
 import com.google.common.base.Objects
+import com.google.firebase.firestore.IgnoreExtraProperties
 import com.google.firebase.ml.md.R
 import com.google.firebase.ml.md.kotlin.camera.GraphicOverlay
 import com.google.firebase.ml.md.kotlin.camera.WorkflowModel
@@ -203,8 +204,10 @@ class LiveBarcodeScanningActivity : AppCompatActivity(), OnClickListener {
                 val barcodeFieldList = ArrayList<BarcodeField>()
                 barcodeFieldList.add(BarcodeField("Points Added", barcode.rawValue ?: ""))
                 BarcodeResultFragment.show(supportFragmentManager, barcodeFieldList)
+
             }
         })
+
     }
 
     companion object {

@@ -8,6 +8,7 @@ import android.widget.Toast
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.database.DatabaseReference
 import com.google.firebase.ml.md.R
 import kotlinx.android.synthetic.main.activity_profile.*
 
@@ -15,6 +16,8 @@ class Profile : AppCompatActivity() {
 
 
     private lateinit var auth: FirebaseAuth
+    private lateinit var mUser: FirebaseUser
+    private lateinit var mDatabase: DatabaseReference
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
