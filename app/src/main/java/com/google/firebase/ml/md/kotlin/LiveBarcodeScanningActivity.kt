@@ -24,28 +24,33 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.View.OnClickListener
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
+import com.google.android.libraries.barhopper.Barcode
 import com.google.android.material.chip.Chip
 import com.google.common.base.Objects
-import com.google.firebase.firestore.IgnoreExtraProperties
+import com.google.firebase.database.*
 import com.google.firebase.ml.md.R
+import com.google.firebase.ml.md.kotlin.barcodedetection.BarcodeProcessor
+import com.google.firebase.ml.md.kotlin.barcodedetection.BarcodeResultFragment
+import com.google.firebase.ml.md.kotlin.barcodedetection.UserBarcodeField
+import com.google.firebase.ml.md.kotlin.camera.CameraSource
+import com.google.firebase.ml.md.kotlin.camera.CameraSourcePreview
 import com.google.firebase.ml.md.kotlin.camera.GraphicOverlay
 import com.google.firebase.ml.md.kotlin.camera.WorkflowModel
 import com.google.firebase.ml.md.kotlin.camera.WorkflowModel.WorkflowState
-import com.google.firebase.ml.md.kotlin.barcodedetection.BarcodeField
-import com.google.firebase.ml.md.kotlin.barcodedetection.BarcodeProcessor
-import com.google.firebase.ml.md.kotlin.barcodedetection.BarcodeResultFragment
-import com.google.firebase.ml.md.kotlin.camera.CameraSource
-import com.google.firebase.ml.md.kotlin.camera.CameraSourcePreview
 import com.google.firebase.ml.md.kotlin.settings.SettingsActivity
+import com.google.firebase.ml.md.kotlin.utils.MySharedPref.Companion.getInstance
 import java.io.IOException
-import java.util.ArrayList
 
 /** Demonstrates the barcode scanning workflow using camera preview.  */
 class LiveBarcodeScanningActivity : AppCompatActivity(), OnClickListener {
 
+    private var mCurrentKey: String? = null
+    private lateinit var userId: String
+    private var mUserbarCode: UserBarcodeField? = null
     private var cameraSource: CameraSource? = null
     private var preview: CameraSourcePreview? = null
     private var graphicOverlay: GraphicOverlay? = null
@@ -55,6 +60,8 @@ class LiveBarcodeScanningActivity : AppCompatActivity(), OnClickListener {
     private var promptChipAnimator: AnimatorSet? = null
     private var workflowModel: WorkflowModel? = null
     private var currentWorkflowState: WorkflowState? = null
+
+    private var databaseReference: DatabaseReference? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,9 +75,9 @@ class LiveBarcodeScanningActivity : AppCompatActivity(), OnClickListener {
 
         promptChip = findViewById(R.id.bottom_prompt_chip)
         promptChipAnimator =
-            (AnimatorInflater.loadAnimator(this, R.animator.bottom_prompt_chip_enter) as AnimatorSet).apply {
-                setTarget(promptChip)
-            }
+                (AnimatorInflater.loadAnimator(this, R.animator.bottom_prompt_chip_enter) as AnimatorSet).apply {
+                    setTarget(promptChip)
+                }
 
         findViewById<View>(R.id.close_button).setOnClickListener(this)
         flashButton = findViewById<View>(R.id.flash_button).apply {
@@ -79,6 +86,28 @@ class LiveBarcodeScanningActivity : AppCompatActivity(), OnClickListener {
         settingsButton = findViewById<View>(R.id.settings_button).apply {
             setOnClickListener(this@LiveBarcodeScanningActivity)
         }
+
+        databaseReference = FirebaseDatabase.getInstance().reference.child(BARCODE)
+        userId = getInstance(this)!!.userId!!
+
+        databaseReference!!.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                if (dataSnapshot.exists() && dataSnapshot.hasChildren()) {
+
+                    for (barcode in dataSnapshot.children) { // do with your result
+                        val userBarcodeField: UserBarcodeField = barcode.getValue(UserBarcodeField::class.java)!!
+                        if (userBarcodeField.userId == userId) {
+                            mUserbarCode = userBarcodeField
+                            mCurrentKey = barcode.key
+                            break
+                        }
+                    }
+                }
+            }
+
+            override fun onCancelled(databaseError: DatabaseError) {}
+        })
+
 
         setUpWorkflowModel()
     }
@@ -201,16 +230,65 @@ class LiveBarcodeScanningActivity : AppCompatActivity(), OnClickListener {
 
         workflowModel?.detectedBarcode?.observe(this, Observer { barcode ->
             if (barcode != null) {
-                val barcodeFieldList = ArrayList<BarcodeField>()
-                barcodeFieldList.add(BarcodeField("Points Added", barcode.rawValue ?: ""))
-                BarcodeResultFragment.show(supportFragmentManager, barcodeFieldList)
-
+                val value: Int = barcode!!.rawValue!!.toInt()
+                if (mUserbarCode == null) {
+                    pushToFirebase(value)
+                } else {
+                    updateData(value);
+                }
             }
         })
 
     }
 
+    private fun updateData(value: Int) {
+        mUserbarCode!!.total += value
+
+        val query = databaseReference!!.child(mCurrentKey!!).child("total").setValue(mUserbarCode!!.total)
+        query.addOnSuccessListener { aVoid: Void? ->
+            Toast.makeText(this@LiveBarcodeScanningActivity, "Data Updated successfully !", Toast.LENGTH_LONG).show()
+        }
+                .addOnFailureListener { e: Exception ->
+                    Toast.makeText(this@LiveBarcodeScanningActivity, "request Fail", Toast.LENGTH_LONG).show()
+                }
+
+        val arrayQuery = databaseReference!!.child(mCurrentKey!!).child("barcodes").push()
+        val barcode = UserBarcodeField.Barcode()
+        barcode.value = value
+        arrayQuery.setValue(barcode).addOnSuccessListener { aVoid: Void? ->
+            Toast.makeText(this@LiveBarcodeScanningActivity, "Data Updated successfully !", Toast.LENGTH_LONG).show()
+        }
+                .addOnFailureListener { e: Exception ->
+                    Toast.makeText(this@LiveBarcodeScanningActivity, "request Fail", Toast.LENGTH_LONG).show()
+                }
+
+
+    }
+
+    private fun pushToFirebase(value: Int) {
+
+        val ref = databaseReference!!.push()
+        mCurrentKey = ref.key
+
+        val barcodes: HashMap<String, UserBarcodeField.Barcode> = HashMap()
+
+        mUserbarCode = UserBarcodeField(value, userId, barcodes)
+        ref.setValue(mUserbarCode).addOnSuccessListener { aVoid: Void? ->
+            val reference = databaseReference!!.child(mCurrentKey!!).child("barcodes").push()
+            val barcode = UserBarcodeField.Barcode()
+            barcode.value = value
+            reference.setValue(barcode).addOnSuccessListener {
+                Toast.makeText(this@LiveBarcodeScanningActivity, "Data pushed successfully !", Toast.LENGTH_LONG).show()
+            }
+        }
+                .addOnFailureListener { e: Exception ->
+                    Toast.makeText(this@LiveBarcodeScanningActivity, "request Fail", Toast.LENGTH_LONG).show()
+                }
+    }
+
     companion object {
         private const val TAG = "LiveBarcodeActivity"
+        val BARCODE = "barCodes"
+
     }
 }

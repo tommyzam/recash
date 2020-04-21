@@ -57,6 +57,11 @@
             android:exported="false"
             android:screenOrientation="portrait" />
         <activity
+            android:name=".kotlin.History"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name=".kotlin.LiveBarcodeScanningActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
